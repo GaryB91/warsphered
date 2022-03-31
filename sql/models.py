@@ -11,6 +11,9 @@ class User(Base):
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
 
+    games = relationship("Game", back_populates="creator")
+    players = relationship("Player", back_populates="user")
+
 
 class Game(Base):
     __tablename__ = "games"
@@ -20,6 +23,7 @@ class Game(Base):
     creator_id = Column(Integer, ForeignKey("users.id"))
 
     creator = relationship("User", back_populates="games")
+    players = relationship("Player", back_populates="game")
 
 
 class Player(Base):

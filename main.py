@@ -1,12 +1,13 @@
 from datetime import timedelta, datetime
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from sql import crud, models, schemas
 from sql.database import SessionLocal
-
 
 
 # to get a string like this run:
@@ -17,6 +18,31 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # main app
 app = FastAPI()
+
+# CORS 
+origins = [
+    "http://localhost",
+    "http://localhost:8080",
+    "http://localhost:8000",
+    "http://0.0.0.0",
+    "http://0.0.0.0:8080",
+    "http://0.0.0.0:8000",
+    "http://127.0.0.1",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:8000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+# static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # db init connection
 def get_db():
@@ -94,15 +120,14 @@ def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2Passw
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.email}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-
 # User routes
 # authed endpoint
-@app.get("/users/me/", response_model=schemas.User)
+@app.get("/users/me", response_model=schemas.User)
 def get_me(current_user: models.User = Depends(get_current_active_user)):
     return current_user
 
@@ -146,12 +171,12 @@ def get_game(user_id: int, game_id: int, db: Session = Depends(get_db)):
     return crud.get_game(db, game_id=game_id)
 
 
-@app.get("/games/", response_model=list[models.Game])
+@app.get("/games/", response_model=list[schemas.Game])
 def get_games(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return crud.get_games(db, skip=skip, limit=limit)
 
 
-@app.post("/games/{game_id}/{user_id}", response_model=models.Player)
+@app.post("/games/{game_id}/{user_id}", response_model=schemas.Player)
 def add_player(game_id: int, user_id: int, data: schemas.PlayerCreate, db: Session = Depends(get_db)):
     return crud.create_player(db, **data, game_id=game_id, user_id=user_id)
 
