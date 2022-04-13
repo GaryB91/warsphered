@@ -71,6 +71,12 @@ def authenticate_user(db: Session, email: str, password: str) -> models.User | N
         if user and verify_password(password, user.hashed_password) \
         else None
 
+def get_access_token(email: str) -> dict[str, str]:
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     encode_data = data.copy()
@@ -102,6 +108,7 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
         raise credentials_exception
     return user
 
+
 def get_current_active_user(current_user: models.User = Depends(get_current_user)):
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
@@ -118,12 +125,20 @@ def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2Passw
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return get_access_token(user.email)
 
+
+@app.post("/register", response_model=schemas.Token)
+def register_for_access_token(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
+    db_user = crud.get_user_by_email(db, user_data.email)
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    if user_data.password != user_data.password_confirm:
+        raise HTTPException(status_code=400, detail="Password and confirmation do not match")
+
+    user = crud.create_user(db, user_data, get_password_hash)
+    return get_access_token(user.email)
 
 # User routes
 # authed endpoint
@@ -132,15 +147,12 @@ def get_me(current_user: models.User = Depends(get_current_active_user)):
     return current_user
 
 ###
-
-
-@app.post("/users/", response_model=schemas.User)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = crud.get_user_by_email(db, user.email)
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    return crud.create_user(db, user, get_password_hash)
-
+# @app.post("/users/", response_model=schemas.User)
+# def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+#     db_user = crud.get_user_by_email(db, user.email)
+#     if db_user:
+#         raise HTTPException(status_code=400, detail="Email already registered")
+#     return crud.create_user(db, user, get_password_hash)
 
 @app.get("/users/", response_model=list[schemas.User])
 def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):

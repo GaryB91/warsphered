@@ -39,7 +39,9 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
+    full_name: str
     password: str
+    password_confirm: str
 
 
 class User(UserBase):
