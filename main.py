@@ -1,6 +1,7 @@
 from datetime import timedelta, datetime
 from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -8,7 +9,7 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from sql import crud, models, schemas
 from sql.database import SessionLocal
-
+from fastapi.templating import Jinja2Templates
 
 # to get a string like this run:
 # openssl rand -hex 32
@@ -42,7 +43,8 @@ app.add_middleware(
 
 # static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
+# templates
+templates = Jinja2Templates(directory="templates")
 
 # db init connection
 def get_db():
@@ -197,7 +199,6 @@ def get_players_for_game(game_id: int, db: Session = Depends(get_db)):
     return crud.get_players_by_game(db, game_id)
 
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World!"}
-
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
